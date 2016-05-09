@@ -1,0 +1,23 @@
+name:                Bambaataa
+version:             0.1.0
+synopsis:            Keep tickin' and tockin', work it all around the clock
+description:         Please see README.md
+homepage:            https://github.com/githubuser/Bambaataa#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Jim Holmstrom
+maintainer:          jim.holmstroem@gmail.com
+copyright:           2016 Jim Holmstrom
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable Bambaataa
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , lens >= 4.13 && < 4.14
+                     , transformers >= 0.4.2 && < 0.4.3
+                     , hedis >= 0.6 && < 0.7
+                     , snap >= 0.14 && < 0.15
