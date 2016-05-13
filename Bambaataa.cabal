@@ -1,5 +1,5 @@
 name:                Bambaataa
-version:             0.1.0
+version:             0.1.2
 synopsis:            Keep tickin' and tockin', work it all around the clock
 description:         Please see README.md
 homepage:            https://github.com/githubuser/Bambaataa#readme
@@ -19,5 +19,7 @@ executable Bambaataa
   build-depends:       base >= 4.7 && < 5
                      , lens >= 4.13 && < 4.14
                      , transformers >= 0.4.2 && < 0.4.3
+                     , hashable >= 1.2 && < 1.3
+                     , bytestring >= 0.10 && < 0.11
                      , hedis >= 0.6 && < 0.7
                      , snap >= 0.14 && < 0.15
