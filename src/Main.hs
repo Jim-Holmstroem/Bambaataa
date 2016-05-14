@@ -31,14 +31,24 @@ getJob conn = do
     Just jobId <- getParam "jobId"
     response <- liftIO $ runRedis conn $ hget "job:" jobId
     case response of (Right (Just input)) -> writeBS input
+                     (Right Nothing) -> do
+                         modifyResponse $ setResponseStatus 404 "Not Found"
+                         writeBS "404 Not Found\n"
+                     (Left message) -> do
+                         modifyResponse $ setResponseStatus 500 "Internal Server Error"
+                         writeBS "500 Error\n"
 
 
 requestJob :: Connection -> Snap ()
 requestJob conn = do
     response <- liftIO $ runRedis conn $ rpoplpush "notcompleted" "inprogress"
     case response of (Right (Just jobId)) -> writeBS jobId
-                     (Right Nothing) -> notFound ""
-                     (Left message) -> serverError message
+                     (Right Nothing) -> do
+                         modifyResponse $ setResponseStatus 404 "Not Found"
+                         writeBS "404 Not Found\n"
+                     (Left message) -> do
+                         modifyResponse $ setResponseStatus 500 "Internal Server Error"
+                         writeBS "500 Error\n"
 
 
 addJob :: Connection -> Snap ()
@@ -51,7 +61,7 @@ addJob conn = do
                        ]
         lpush "notcompleted" [jobId] -- TODO handling duplicate hash
 
-    writeBS $ "ok"
+    writeBS $ "ok\n"
 
 
 
