@@ -35,8 +35,11 @@ getJob conn = do
 
 requestJob :: Connection -> Snap ()
 requestJob conn = do
-    response <- liftIO $ runRedis conn $ brpoplpush "notcompleted" "inprogress" 60 -- TODO handle timeout properly
+    response <- liftIO $ runRedis conn $ rpoplpush "notcompleted" "inprogress"
     case response of (Right (Just jobId)) -> writeBS jobId
+                     (Right Nothing) -> notFound ""
+                     (Left message) -> serverError message
+
 
 addJob :: Connection -> Snap ()
 addJob conn = do
