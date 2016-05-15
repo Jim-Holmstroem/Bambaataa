@@ -21,8 +21,36 @@ site conn =
     route [ ("jobs", method POST $ addJob conn)
           , ("jobs/:jobId", method GET $ getJob conn)
           , ("requestJob", method GET $ requestJob conn)
+          , ("results/:jobId", method POST $ addResult conn)
+          , ("failed/:jobId", method GET $ failed conn)
           ]
 
+
+markFailed jobId = multiExec $ do
+    rpoplpush "inprogress" "notcompleted"
+    del [ BSC8.append "holds:" jobId ]
+
+
+failed :: Connection -> Snap ()
+failed conn = do
+    Just jobId <- getParam "jobId"
+    repones <- liftIO $ runRedis conn $ markFailed jobId
+    return ()
+
+
+addResult :: Connection -> Snap ()
+addResult conn = do
+    Just output <- getPostParam "output"
+    Just jobId <- getParam "jobId"
+    -- TODO how to handle late results
+    response <- liftIO $ runRedis conn $ multiExec $ do
+        hmset (BSC8.append "job:" jobId) [ ("output", output)
+                                         ]
+        del $ [ BSC8.append "holds:" jobId ]
+        lrem "inprogress" 0 jobId
+        lpush "completed" [jobId]
+
+    modifyResponse $ setResponseCode 201
 
 
 getJob :: Connection -> Snap ()
@@ -32,23 +60,24 @@ getJob conn = do
     case response of (Right (Just input)) -> writeBS $ BSC8.append input "\n"
                      (Right Nothing) -> do
                          modifyResponse $ setResponseStatus 404 "Not Found"
-                         writeBS "404 Not Found\n"
                      (Left message) -> do
                          modifyResponse $ setResponseStatus 500 "Internal Server Error"
-                         writeBS "500 Error\n"
 
 
 requestJob :: Connection -> Snap ()
 requestJob conn = do
     response <- liftIO $ runRedis conn $ do
         rpoplpush "notcompleted" "inprogress"
-    case response of (Right (Just jobId)) -> writeBS $ BSC8.append jobId "\n"
+
+    case response of (Right (Just jobId)) -> do
+                         liftIO $ runRedis conn $ multiExec $ do
+                             set (BSC8.append "holds:" jobId) "1"
+                             expire (BSC8.append "holds:" jobId) 15
+                         writeBS $ BSC8.append jobId "\n"
                      (Right Nothing) -> do
                          modifyResponse $ setResponseStatus 404 "Not Found"
-                         writeBS "404 Not Found\n"
                      (Left message) -> do
                          modifyResponse $ setResponseStatus 500 "Internal Server Error"
-                         writeBS "500 Error\n"
 
 
 addJob :: Connection -> Snap ()
