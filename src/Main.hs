@@ -9,8 +9,6 @@ import Control.Monad.IO.Class
 import Database.Redis
 import Snap
 
--- TODO does it handle utf8?
--- FIXME Unable to add a jobb when the queue is empty and a worker is requesting a Job
 
 main :: IO ()
 main = do
@@ -29,8 +27,8 @@ site conn =
 getJob :: Connection -> Snap ()
 getJob conn = do
     Just jobId <- getParam "jobId"
-    response <- liftIO $ runRedis conn $ hget "job:" jobId
-    case response of (Right (Just input)) -> writeBS input
+    response <- liftIO $ runRedis conn $ hget (BSC8.append "job:" jobId) "input"
+    case response of (Right (Just input)) -> writeBS $ BSC8.append input "\n"
                      (Right Nothing) -> do
                          modifyResponse $ setResponseStatus 404 "Not Found"
                          writeBS "404 Not Found\n"
@@ -42,7 +40,7 @@ getJob conn = do
 requestJob :: Connection -> Snap ()
 requestJob conn = do
     response <- liftIO $ runRedis conn $ rpoplpush "notcompleted" "inprogress"
-    case response of (Right (Just jobId)) -> writeBS jobId
+    case response of (Right (Just jobId)) -> writeBS $ BSC8.append jobId "\n"
                      (Right Nothing) -> do
                          modifyResponse $ setResponseStatus 404 "Not Found"
                          writeBS "404 Not Found\n"
@@ -53,29 +51,13 @@ requestJob conn = do
 
 addJob :: Connection -> Snap ()
 addJob conn = do
-    input <- readRequestBody (256 * 2^20)
+    Just input <- getPostParam "input"
     let jobId = BSC8.pack $ show $ hash input
+
     response <- liftIO $ runRedis conn $ multiExec $ do -- TODO handling if this fails
-        hmset ("job:") [ ("input", "poop")
-                       , ("n_retries", "0")
-                       ]
+        hmset (BSC8.append "job:" jobId) [ ("input", input)
+                                         , ("n_retries", "0")
+                                         ]
         lpush "notcompleted" [jobId] -- TODO handling duplicate hash
 
-    writeBS $ "ok\n"
-
-
-
-
-setHandler :: Connection -> Snap ()
-setHandler conn = do
-    Just key <- getParam "key"
-    Just value <- getParam "value"
-    liftIO $ runRedis conn $ set key value
-    writeBS key
-
-
-getHandler :: Connection -> Snap ()
-getHandler conn = do
-    Just key <- getParam "key"
-    Right (Just value) <- liftIO $ runRedis conn $ get key
-    writeBS value
+    modifyResponse $ setResponseCode 201
