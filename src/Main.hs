@@ -24,6 +24,7 @@ site conn =
           ]
 
 
+
 getJob :: Connection -> Snap ()
 getJob conn = do
     Just jobId <- getParam "jobId"
@@ -39,7 +40,8 @@ getJob conn = do
 
 requestJob :: Connection -> Snap ()
 requestJob conn = do
-    response <- liftIO $ runRedis conn $ rpoplpush "notcompleted" "inprogress"
+    response <- liftIO $ runRedis conn $ do
+        rpoplpush "notcompleted" "inprogress"
     case response of (Right (Just jobId)) -> writeBS $ BSC8.append jobId "\n"
                      (Right Nothing) -> do
                          modifyResponse $ setResponseStatus 404 "Not Found"
