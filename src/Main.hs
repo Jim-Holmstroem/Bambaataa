@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Control.Monad
 import Data.Hashable
 import qualified Data.ByteString.Char8 as BSC8
 import qualified Data.ByteString.Lazy.Char8 as BSLC8
@@ -23,10 +24,25 @@ site conn =
           , ("requestJob", method GET $ requestJob conn)
           , ("results/:jobId", method POST $ addResult conn)
           , ("failed/:jobId", method GET $ failed conn)
+          , ("refresh", method GET $ refresh conn)
           ]
 
 
-markFailed jobId = multiExec $ do
+
+isLeft4Dead jobId = runRedis conn $ 
+
+refresh :: Connection -> Snap ()
+refresh conn = do
+    response <- liftIO $ runRedis conn $ lrange "inprogress" 0 (-1)
+    case response of (Right inprogress) -> do
+                         -- putback $ all inprogress that are missing "holds:<jobId>"                         
+                         dead <- filterM () inprogress 
+                         mapM_ (flip writeBS "\n") dead
+                     (Left message) -> do
+                         modifyResponse $ setResponseStatus 500 "Internal Server Error"
+
+
+moveBack jobId = multiExec $ do
     rpoplpush "inprogress" "notcompleted"
     del [ BSC8.append "holds:" jobId ]
 
@@ -34,7 +50,7 @@ markFailed jobId = multiExec $ do
 failed :: Connection -> Snap ()
 failed conn = do
     Just jobId <- getParam "jobId"
-    repones <- liftIO $ runRedis conn $ markFailed jobId
+    response <- liftIO $ runRedis conn $ moveBack jobId
     return ()
 
 
